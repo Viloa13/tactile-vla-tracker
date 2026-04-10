@@ -47,12 +47,23 @@ tactile_vla_tracker/
 
 ### 第一步：安装依赖
 
+克隆仓库后，进入项目目录并安装依赖：
+
 ```powershell
-cd C:\Users\l\WorkBuddy\20260410124523\tactile_vla_tracker
+cd tactile-vla-tracker
 pip install -r requirements.txt
 ```
 
-### 第二步：测试运行
+### 第二步：配置
+
+将 `config.example.json` 复制为 `config.json`，填入你的 Server酱 SendKey：
+
+```powershell
+copy config.example.json config.json
+# 然后用文本编辑器打开 config.json，填入 SendKey
+```
+
+### 第三步：测试运行
 
 ```powershell
 python paper_tracker.py
@@ -70,6 +81,15 @@ python paper_tracker.py
 已通过 schtasks 创建定时任务，每周一早上 9:00 自动运行。
 
 ```powershell
+# 创建定时任务（将路径替换为你本地克隆的目录）
+schtasks /create `
+    /tn "TactileVLA_PaperTracker" `
+    /tr "python X:\你的路径\tactile-vla-tracker\paper_tracker.py" `
+    /sc weekly `
+    /d MON `
+    /st 09:00 `
+    /f
+
 # 查看已创建的任务
 schtasks /query /tn "TactileVLA_PaperTracker"
 
