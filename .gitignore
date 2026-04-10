@@ -1,0 +1,22 @@
+# 配置文件（含 SendKey，禁止上传）
+config.json
+sent_papers.json
+tracker.log
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
