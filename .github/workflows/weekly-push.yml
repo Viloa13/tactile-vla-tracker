@@ -1,0 +1,37 @@
+name: Weekly Tactile VLA Paper Tracker
+
+on:
+  schedule:
+    # 每周一 09:00 (UTC+8) = 每周一 01:00 UTC
+    - cron: '0 1 * * 1'
+  workflow_dispatch:  # 支持手动触发
+
+jobs:
+  push-papers:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install arxiv requests
+
+      - name: Run tracker
+        env:
+          SERVER_SENDKEY: ${{ secrets.SERVER_SENDKEY }}
+        run: |
+          # 动态生成 config.json（SendKey 从 Secrets 注入，不写入仓库）
+          python -c "
+          import json, os
+          config = json.load(open('config.example.json'))
+          config['server_sendkey'] = os.environ['SERVER_SENDKEY']
+          json.dump(config, open('config.json', 'w'), indent=4, ensure_ascii=False)
+          print('config.json generated from secrets')
+          "
+          python paper_tracker.py
