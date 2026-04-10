@@ -1,0 +1,20 @@
+{
+    "server_sendkey": "把你的 Server酱 SendKey 填在这里（如 SCTxxxxxxxxxx）",
+    "keywords": [
+        "tactile VLA",
+        "tactile vision language action",
+        "tactile-force aware VLA",
+        "haptic vision language robot",
+        "tactile foundation model robot",
+        "touch sensing vision language action",
+        "tactile multimodel robot manipulation",
+        "force-aware vision language robot",
+        "Dexterous tactile manipulation foundation model",
+        "tactile-language robot manipulation VLA"
+    ],
+    "days_back": 7,
+    "max_papers": 20,
+    "min_score": 25,
+    "notification_time": "09:00",
+    "push_day": "MON"
+}
