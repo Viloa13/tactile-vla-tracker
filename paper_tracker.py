@@ -213,78 +213,213 @@ def query_semantic_scholar(arxiv_id: str) -> dict:
     return {}
 
 
-# ─── 论文贡献提取（结构化） ────────────────────────────────
+# ─── 论文贡献提取（结构化 + 具体技术细节） ───────────────────
 
-def extract_contributions(title: str, abstract: str) -> dict:
-    """
-    从摘要中结构化提取论文贡献，分为三个维度：
-    1. 问题与动机 (problem)
-    2. 核心方法 (method)
-    3. 实验验证 (experiment)
-    """
-    text = (title + " " + abstract).lower()
-    contributions = {
-        "problem": [],
-        "method": [],
-        "experiment": []
+def _extract_specific_terms(text: str) -> dict[str, list[str]]:
+    """从文本中提取具体的技术术语和实体（用于丰富贡献描述）"""
+    results = {
+        "methods": [],
+        "sensors": [],
+        "platforms": [],
+        "tasks": [],
+        "datasets": [],
+        "architectures": [],
     }
 
-    # 问题与动机关键词
-    problem_keywords = [
-        (["lack", "limitation", "challenge", "problem"], "现有方法的局限或挑战"),
-        (["existing methods", "traditional", "conventional", "current approaches"], "现有方法不足"),
-        (["real-world", "real robot", "physical interaction"], "真实场景部署难题"),
-        (["sim-to-real", "sim2real", "domain gap", "transfer"], "仿真-真实迁移难题"),
-        (["zero-shot", "generaliz", "未见物体", "unseen"], "泛化/零样本能力受限"),
-        (["data efficient", "data-hungry", "large data", "标注数据"], "数据效率问题"),
-        (["contact-rich", "rich contact", "dexterous"], "灵巧操作难题"),
+    # 具体方法名
+    method_map = [
+        (r"diffusion (?:policy|model|guidance)", "Diffusion Policy/Model"),
+        (r"\bddpm\b|\bddpg\b|\bdsac\b", "DDPG/DSAC"),
+        (r"behavior(?:al)? clone|imitation learning", "Imitation Learning (BC)"),
+        (r"reinforcement learning|rl[- ]?based|rl policy", "Reinforcement Learning"),
+        (r"vision[- ]?language|vla|vision language model|vlm", "Vision-Language Model"),
+        (r"foundation model|pretrained|pre[- ]?train", "Foundation Model"),
+        (r"transformer[- ]?based|transformer arch", "Transformer"),
+        (r"graph neural|gnn", "Graph Neural Network"),
+        (r"sim[- ]?to[- ]?real|sim2real|domain randomiz", "Sim-to-Real"),
+        (r"language instruction|text condition|natural language", "Language Instruction"),
+        (r"cross[- ]?modal|multimodal fusion", "Cross-modal Fusion"),
+        (r"contact model|contact dynamic", "Contact Dynamics"),
+        (r"force control|impedance control|admittance", "Force/Impedance Control"),
+        (r"closed[- ]?loop|feedback control", "Closed-Loop Control"),
+        (r"model predictive|mpc", "MPC"),
+        (r"lstm|gru|recurrent neural", "RNN/LSTM"),
+        (r"cnn|convolutional neural", "CNN"),
+        (r"vit|vision transformer|clip", "ViT/CLIP"),
+        (r"voxel|point cloud", "3D Sensing (Point Cloud)"),
+        (r"active inference|active touch|exploration", "Active Inference/Touch"),
     ]
-    for terms, desc in problem_keywords:
-        if any(t in text for t in terms) and desc not in contributions["problem"]:
+    for pattern, label in method_map:
+        if re.search(pattern, text, re.IGNORECASE):
+            results["methods"].append(label)
+
+    # 传感器
+    sensor_map = [
+        (r"gelSight|DIGIT|视触觉|视触传感", "GelSight/DIGIT 视触觉传感器"),
+        (r"biotac", "BioTac 视触觉传感器"),
+        (r"depth camera|rgbd|realsense", "RGB-D 深度相机"),
+        (r"event.?based|event camera|davis", "Event Camera"),
+        (r"force/torque|f/t sensor|六轴力", "F/T 六轴力传感器"),
+        (r"thermal.?camera|热成像", "Thermal Camera"),
+        (r"lidar|3d lidar", "LiDAR"),
+    ]
+    for pattern, label in sensor_map:
+        if re.search(pattern, text, re.IGNORECASE):
+            results["sensors"].append(label)
+
+    # 机器人平台
+    platform_map = [
+        (r"franka panda|franka|panda arm", "Franka Panda 机械臂"),
+        (r"kuka|iiwa", "KUKA 机械臂"),
+        (r"ur5|ur10|universal robot", "UR 机械臂"),
+        (r"allegro|shadow hand|灵巧手", "Allegro/Shadow Hand 灵巧手"),
+        (r"dclaw|d.?claw|三指", "DClaw 三指手"),
+        (r"quadruped|四足|anymal", "四足机器人"),
+        (r"humanoid|人形机器人", "人形机器人"),
+        (r"mobile manip|移动操作", "移动操作机器人"),
+        (r"baxter|sawyer|协作机器人", "协作机器人"),
+        (r"panda|fetch| Fetch", "Fetch 机械臂"),
+    ]
+    for pattern, label in platform_map:
+        if re.search(pattern, text, re.IGNORECASE):
+            results["platforms"].append(label)
+
+    # 任务类型
+    task_map = [
+        (r"grasping|抓取", "物体抓取"),
+        (r"in[- ]?hand|dexterous manipulation|灵巧操作", "灵巧手操作"),
+        (r"insertion|装配|peg[- ]?hole", "装配插入任务"),
+        (r"cloth|布料|folding|折叠", "布料操作"),
+        (r"door|开门|open.?door", "开门操作"),
+        (r"navigation|导航", "导航任务"),
+        (r"contact.?rich|rich contact", "接触密集型任务"),
+        (r"deformable|可变形物", "可变形物体操作"),
+        (r"handoff|人机交接", "人机交接"),
+        (r"teleoperation|遥操作", "遥操作"),
+    ]
+    for pattern, label in task_map:
+        if re.search(pattern, text, re.IGNORECASE):
+            results["tasks"].append(label)
+
+    # 数据集
+    dataset_map = [
+        (r"acronym|graspnet|jacquard", "Acronym/GraspNet 数据集"),
+        (r"contact.?db|contact database", "Contact-DB 数据集"),
+        (r"libero|calvin", "LIBERO/CALVIN 数据集"),
+        (r"open.?x.?embodiment|oxe", "Open X-Embodiment 数据集"),
+        (r"rt[- ]?[12]|rh20t", "RT-1/RT-2/RH20T 数据集"),
+        (r"vima|meta.?world", "VIMA/Meta-World 数据集"),
+    ]
+    for pattern, label in dataset_map:
+        if re.search(pattern, text, re.IGNORECASE):
+            results["datasets"].append(label)
+
+    # 去重，每类最多2个
+    for key in results:
+        results[key] = list(dict.fromkeys(results[key]))[:2]
+
+    return results
+
+
+def extract_contributions(title: str, abstract: str) -> dict[str, list[str]]:
+    """
+    从摘要中结构化提取论文贡献，分三个维度：
+    1. 问题与动机 (problem)   - 具体指出现有工作的局限
+    2. 核心方法 (method)      - 包含具体技术名称、传感器、任务
+    3. 实验验证 (experiment)  - 具体实验设置和验证内容
+    """
+    text = (title + " " + abstract).lower()
+    contributions = {"problem": [], "method": [], "experiment": []}
+
+    # ── 问题与动机：提取原文具体描述 ──
+    problem_map = [
+        (r"lack(?:s|ing)? of (?:generalization|泛化)", "缺乏泛化泛化能力，难以迁移到新物体/场景"),
+        (r"sim[- ]?to[- ]?real gap|domain gap|域差距", "Sim-to-Real 迁移存在显著域差距"),
+        (r"data[- ]?(?:scarcity|efficient)|标注数据不足", "训练数据稀缺/标注成本高"),
+        (r"contact[- ]?rich|rich contact|精细操作", "接触密集型任务对精确力控要求高"),
+        (r"delicate|fine[- ]?grained manipulation|精细", "精细/灵巧操作精度要求高"),
+        (r"multi[- ]?modal fusion|modality gap|模态差距", "多模态感知融合困难，模态间存在语义差距"),
+        (r"long[- ]?horizon|long[- ]?sequence|长时序", "长时序任务规划与执行困难"),
+        (r"(?:zero|zero.?shot).?(?:generaliz|unseen|novel)", "零样本/未见场景泛化能力不足"),
+        (r"sample efficiency|样本效率", "样本效率低，训练成本高"),
+        (r"(?:lack|absent|no).*?tactile|haptic feedback", "触觉感知缺失或精度不足"),
+        (r"(?:noisy|uncertain|partial).*?(?:environment|observ)", "环境噪声与不确定性导致控制不稳定"),
+        (r"real[- ]?time|real.?world deploy|部署", "真实场景部署的计算效率与实时性挑战"),
+        (r"dexterous|dexterity|灵巧操作", "灵巧操作对多指协同控制要求高"),
+    ]
+    for pattern, desc in problem_map:
+        if re.search(pattern, text) and desc not in contributions["problem"]:
             contributions["problem"].append(desc)
 
-    # 核心方法关键词
-    method_keywords = [
+    # 通用问题兜底
+    if not contributions["problem"]:
+        lacks = re.findall(
+            r"(?:lack|limit|challenge|issue|gap|problem)(?:s|ing|ed)? "
+            r"(?:of|in|for|with)? (.{5,60}?)(?:\.|,|;)",
+            abstract[:400]
+        )
+        for l in lacks[:2]:
+            clean = l.strip().rstrip(",;.")
+            if 5 < len(clean) < 60:
+                contributions["problem"].append(f"现有方法在 {clean} 上的局限")
+
+    contributions["problem"] = contributions["problem"][:3]
+
+    # ── 核心方法：具体技术 + 传感器 + 任务 ──
+    specific = _extract_specific_terms(text)
+    method_items = []
+
+    # 按优先级组合具体技术
+    if specific["methods"]:
+        method_items.append("方法: " + " + ".join(specific["methods"][:2]))
+    if specific["sensors"]:
+        method_items.append("感知: " + " + ".join(specific["sensors"][:2]))
+    if specific["platforms"]:
+        method_items.append("平台: " + " + ".join(specific["platforms"][:2]))
+    if specific["tasks"]:
+        method_items.append("任务: " + " + ".join(specific["tasks"][:2]))
+    if specific["datasets"]:
+        method_items.append("数据: " + " + ".join(specific["datasets"][:2]))
+
+    # 通用方法标签（无具体提取时的兜底）
+    generic_map = [
         (["tactile", "haptic", "force", "touch"], "触觉/力感知建模"),
         (["vision language", "vla", "vlm", "multimodal"], "视觉-语言-动作多模态融合"),
-        (["foundation model", "pretrain", "pre-train", "large language"], "预训练/基础模型"),
-        (["diffusion", "ddpm", "score-based"], "Diffusion 策略/生成"),
+        (["foundation model", "pretrain", "large language"], "预训练基础模型"),
+        (["diffusion", "ddpm", "score-based"], "Diffusion Policy/Model"),
         (["transformer", "attention"], "Transformer 架构"),
         (["reinforcement learning", "rl", "policy"], "强化学习策略优化"),
-        (["imitation learning", "il", "demonstration"], "模仿学习/示教"),
+        (["imitation learning", "il", "demonstration"], "模仿学习（行为克隆）"),
         (["closed-loop", "feedback", "real-time"], "闭环控制与实时反馈"),
-        (["sim-to-real", "domain randomization", "sim2real"], "仿真-真实迁移技术"),
+        (["sim-to-real", "domain randomization", "sim2real"], "Sim-to-Real 域迁移"),
         (["language instruction", "text condition", "natural language"], "语言指令跟随"),
         (["graph neural", "gnn"], "图神经网络建模"),
-        (["propriocept", "视觉", "vision"], "本体感/视觉感知"),
     ]
-    for terms, desc in method_keywords:
-        if any(t in text for t in terms) and desc not in contributions["method"]:
-            contributions["method"].append(desc)
+    for terms, label in generic_map:
+        if any(t in text for t in terms) and label not in method_items:
+            method_items.append(label)
 
-    # 实验验证关键词
-    exp_keywords = [
-        (["real robot", "physical robot", "真实机器人"], "真实机器人平台验证"),
-        (["grasping", "manipulation", "抓取", "操作"], "抓取/操作任务实验"),
-        ([" dexterous", "dexterity", "灵巧手"], "灵巧操作任务"),
-        (["benchmark", "comparison", "对比"], "基准数据集对比实验"),
-        (["ablation", "消融", "ablation study"], "消融实验验证"),
-        (["zero-shot", "generalization", "泛化"], "泛化能力验证"),
-        (["humanoid", "四足", "quadruped", "mobile"], "多种机器人平台"),
+    contributions["method"] = method_items[:5]
+
+    # ── 实验验证 ──
+    exp_map = [
+        (r"real robot|physical robot|真实机器人", "真实机器人平台实验验证"),
+        (r"grasping|manipulation|抓取操作", "抓取/操作任务性能测试"),
+        (r"dexterous|dexterity|灵巧操作任务", "灵巧操作任务实验"),
+        (r"benchmark|comparison|vs\.|对比基线", "与基线方法的对比实验"),
+        (r"ablation|消融", "消融实验验证各模块贡献"),
+        (r"zero.?shot|generalization test|unseen", "零样本/泛化能力测试"),
+        (r"simulation|simulator|mujoco|physx", "仿真环境验证"),
+        (r"quantitative|显著提升|improve|accuracy", "定量性能指标对比"),
+        (r"qualitative|可视化|visualization", "定性结果与可视化分析"),
+        (r"real[- ]?world|real[- ]?scene|home", "真实场景/家居场景验证"),
+        (r"multi[- ]?object|多物体|泛化", "多物体/多场景泛化测试"),
     ]
-    for terms, desc in exp_keywords:
-        if any(t in text for t in terms) and desc not in contributions["experiment"]:
+    for pattern, desc in exp_map:
+        if re.search(pattern, text) and desc not in contributions["experiment"]:
             contributions["experiment"].append(desc)
 
-    # 兜底：如果提取为空，补充摘要首句
-    if not contributions["problem"] and not contributions["method"]:
-        first_sent = abstract[:150].strip()
-        if first_sent:
-            contributions["method"].append(first_sent.rstrip("."))
-
-    # 限制每类最多3条
-    for key in contributions:
-        contributions[key] = contributions[key][:3]
+    contributions["experiment"] = contributions["experiment"][:3]
 
     return contributions
 
